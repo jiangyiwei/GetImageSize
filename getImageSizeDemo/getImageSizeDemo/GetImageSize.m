@@ -10,57 +10,72 @@
 
 @implementation GetImageSize
 
-// 根据图片url获取图片尺寸
-+(void)getImageSizeWithURL:(id)imageURL imageBlock:(void(^)(CGSize imageSize)) block
-{
-    NSURL* URL = nil;
-    if([imageURL isKindOfClass:[NSURL class]]){
-        URL = imageURL;
+// 根据图片url获取图片尺寸格式
++(void)getImageSizeWithURLString:(NSString *)imageURLString imageBlock:(void(^)(CGSize imageSize))getSize{
+    // 图片地址不正确返回CGSizeZero
+    if(imageURLString == nil || [imageURLString isEqualToString:@""]){
+        getSize(CGSizeZero);
+        return;
     }
-    if([imageURL isKindOfClass:[NSString class]]){
-        URL = [NSURL URLWithString:imageURL];
-    }
-    if(URL == nil)
-//        return CGSizeZero;                  // url不正确返回CGSizeZero
-        block(CGSizeZero);
     
-    
+    NSURL *URL = [NSURL URLWithString:imageURLString];
     NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL:URL];
-    NSString* pathExtendsion = [URL.pathExtension lowercaseString];
+    NSString *pathExtendsion = [URL.pathExtension lowercaseString];
     
-    CGSize size = CGSizeZero;
     if([pathExtendsion isEqualToString:@"png"]){
-//        size =  [self getPNGImageSizeWithRequest:request];
-    }
-    else if([pathExtendsion isEqual:@"gif"])
-    {
-//        size =  [self getGIFImageSizeWithRequest:request];
-    }
-    else{
-        
-        [self getJPGImageSizeWithRequest:request block:^(CGSize size) {
-            block(size);
+        [self getPNGImageSizeWithRequest:request PNGImageBlock:^(CGSize PNGImageSize) {
+            getSize(PNGImageSize);
         }];
-        
     }
-    if(CGSizeEqualToSize(CGSizeZero, size))                    // 如果获取文件头信息失败,发送异步请求请求原图
-    {
-        NSData* data = [NSURLConnection sendSynchronousRequest:[NSURLRequest requestWithURL:URL] returningResponse:nil error:nil];
-        UIImage* image = [UIImage imageWithData:data];
-        if(image)
-        {
-            size = image.size;
-        }
+    else if([pathExtendsion isEqual:@"gif"]){
+        [self getGIFImageSizeWithRequest:request GIFImageBlock:^(CGSize GIFImageSize) {
+            getSize(GIFImageSize);
+        }];
+    }else{
+        [self getJPGImageSizeWithRequest:request JPGImageBlock:^(CGSize JPGImageSize) {
+            getSize(JPGImageSize);
+        }];
     }
-
+    
+    // 如果获取文件头信息失败,发送异步请求请求原图
+    if(CGSizeEqualToSize(CGSizeZero, CGSizeZero)){
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSURLSessionDataTask *dataTask = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
+                UIImage *image = [UIImage imageWithData:data];
+                if (image) {
+                    getSize(image.size);
+                }
+            }];
+            [dataTask resume];
+        });
+    }
 }
-//  获取PNG图片的大小
-+(CGSize)getPNGImageSizeWithRequest:(NSMutableURLRequest*)request
-{
+
+/**
+ *  通过网络请求，获取PNG格式图片data
+ *
+ *  @param request    网络请求
+ *  @param getPNGSize PNG图片尺寸
+ */
++(void)getPNGImageSizeWithRequest:(NSMutableURLRequest*)request PNGImageBlock:(void(^)(CGSize PNGImageSize))getPNGSize{
     [request setValue:@"bytes=16-23" forHTTPHeaderField:@"Range"];
-    NSData* data = [NSURLConnection sendSynchronousRequest:request returningResponse:nil error:nil];
-    if(data.length == 8)
-    {
+    
+    NSURLSessionDataTask *dataTask = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
+        CGSize size = [self getPNGImageSize:data];
+        getPNGSize(size);
+    }];
+    [dataTask resume];
+}
+
+/**
+ *  获取PNG格式图片尺寸
+ *
+ *  @param data 图片data
+ *
+ *  @return PNG格式图片尺寸
+ */
++(CGSize)getPNGImageSize:(NSData *)data{
+    if(data.length == 8){
         int w1 = 0, w2 = 0, w3 = 0, w4 = 0;
         [data getBytes:&w1 range:NSMakeRange(0, 1)];
         [data getBytes:&w2 range:NSMakeRange(1, 1)];
@@ -77,13 +92,32 @@
     }
     return CGSizeZero;
 }
-//  获取gif图片的大小
-+(CGSize)getGIFImageSizeWithRequest:(NSMutableURLRequest*)request
-{
+
+/**
+ *  通过网络请求，获取GIF格式图片data
+ *
+ *  @param request    网络请求
+ *  @param getGIFSize GIF图片尺寸
+ */
++(void)getGIFImageSizeWithRequest:(NSMutableURLRequest *)request GIFImageBlock:(void(^)(CGSize GIFImageSize))getGIFSize{
     [request setValue:@"bytes=6-9" forHTTPHeaderField:@"Range"];
-    NSData* data = [NSURLConnection sendSynchronousRequest:request returningResponse:nil error:nil];
-    if(data.length == 4)
-    {
+    
+    NSURLSessionDataTask *dataTask = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
+        CGSize size = [self getGIFImageSize:data];
+        getGIFSize(size);
+    }];
+    [dataTask resume];
+}
+
+/**
+ *  获取GIF格式图片尺寸
+ *
+ *  @param data 图片data
+ *
+ *  @return GIF格式图片尺寸
+ */
++(CGSize)getGIFImageSize:(NSData *)data{
+    if(data.length == 4){
         short w1 = 0, w2 = 0;
         [data getBytes:&w1 range:NSMakeRange(0, 1)];
         [data getBytes:&w2 range:NSMakeRange(1, 1)];
@@ -96,22 +130,32 @@
     }
     return CGSizeZero;
 }
-//  获取jpg图片的大小
-+(void)getJPGImageSizeWithRequest:(NSMutableURLRequest*)request block:(void(^)(CGSize size))block
-{
+
+/**
+ *  通过网络请求，获取JPG格式图片data
+ *
+ *  @param request    网络请求
+ *  @param getJPGSize JPG格式图片尺寸
+ */
++(void)getJPGImageSizeWithRequest:(NSMutableURLRequest *)request JPGImageBlock:(void(^)(CGSize JPGImageSize))getJPGSize{
     [request setValue:@"bytes=0-209" forHTTPHeaderField:@"Range"];
-//    NSData* data = [NSURLConnection sendSynchronousRequest:request returningResponse:nil error:nil];
     
     NSURLSessionDataTask *dataTask = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
-        CGSize sizem = [self getSize:data];
-        block(sizem) ;
+        CGSize size = [self getJPGImageSize:data];
+        getJPGSize(size);
     }];
     [dataTask resume];
-    
-    
 }
 
-+(CGSize)getSize:(NSData *)data{
+/**
+ *  获取JPG格式图片尺寸
+ *
+ *  @param data 图片data
+ *
+ *  @return JPG格式图片尺寸
+ */
++(CGSize)getJPGImageSize:(NSData *)data{
+    
     if ([data length] <= 0x58) {
         return CGSizeZero;
     }

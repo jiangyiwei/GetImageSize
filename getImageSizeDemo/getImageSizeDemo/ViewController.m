@@ -17,11 +17,11 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-//    @""
     // Do any additional setup after loading the view, typically from a nib.
-    NSString *imageString = @"http://scimg.jb51.net/allimg/160815/103-160Q509544OC.jpg";
-    [GetImageSize getImageSizeWithURL:imageString imageBlock:^(CGSize imageSize) {
-       NSLog(@"%@",NSStringFromCGSize(imageSize));
+    
+    NSString *imageString = @"http://d.lanrentuku.com/down/png/1607/bolt-icons/bolt_stay.png";
+    [GetImageSize getImageSizeWithURLString:imageString imageBlock:^(CGSize imageSize) {
+        NSLog(@"%@",NSStringFromCGSize(imageSize));
     }];
     
 }

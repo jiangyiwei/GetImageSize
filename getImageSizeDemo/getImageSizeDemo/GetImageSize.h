@@ -11,6 +11,12 @@
 
 @interface GetImageSize : NSObject
 
-+(void)getImageSizeWithURL:(id)imageURL imageBlock:(void(^)(CGSize imageSize))block;
+/**
+ *  获取图片尺寸
+ *
+ *  @param imageURL 图片地址String
+ *  @param block    图片尺寸
+ */
++(void)getImageSizeWithURLString:(NSString *)imageURLString imageBlock:(void(^)(CGSize imageSize))getSize;
 
 @end
